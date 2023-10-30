@@ -3,11 +3,14 @@ package rpc
 import (
 	"context"
 	"errors"
+	"log"
 	"micro/rpc/message"
 	"micro/rpc/serialize"
 	"micro/rpc/serialize/json"
 	"net"
 	"reflect"
+	"strconv"
+	"time"
 )
 
 type Server struct {
@@ -64,12 +67,23 @@ func (s *Server) handleConn(conn net.Conn) error {
 		req := message.DecodeReq(reqBs)
 		
 		ctx := context.Background()
+		cancel := func() {}
+		log.Println(req.Meta)
+		if deadlineStr, ok := req.Meta["deadline"]; ok {
+			log.Println(deadlineStr)
+			deadline, er := strconv.ParseInt(deadlineStr, 10, 64)
+			if er == nil {
+				ctx, cancel = context.WithDeadline(ctx, time.UnixMilli(deadline))
+			}
+		}
 		oneway, ok := req.Meta["oneway"]
 		if ok && oneway == "true" {
 			ctx = CtxWithOneway(ctx)
 		}
 
 		resp, err := s.Invoke(ctx, req)
+		// 服务链路调用结束, 结束 ctx
+		cancel()
 		if err != nil {
 			// 处理业务 error
 			resp.Error = []byte(err.Error())

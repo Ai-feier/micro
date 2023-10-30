@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"micro/proto/gen"
+	"testing"
+	"time"
 )
 
 type UserService struct {
@@ -49,5 +51,26 @@ func (u *UserServiceServer) GetByIdProto(ctx context.Context, req *gen.GetByIdRe
 }
 
 func (u *UserServiceServer) Name() string {
+	return "user-service"
+}
+
+type UserServiceServerTimeout struct {
+	t *testing.T
+	sleep time.Duration
+	Err error
+	Msg string
+}
+
+func (u *UserServiceServerTimeout) GetById(ctx context.Context, req *GetByIdReq) (*GetByIdResp, error) {
+	if _, ok := ctx.Deadline(); !ok {
+		u.t.Fatal("没有设置超时")
+	}
+	time.Sleep(u.sleep)
+	return &GetByIdResp{
+		Msg: u.Msg,
+	}, u.Err
+}
+
+func (u *UserServiceServerTimeout) Name() string {
 	return "user-service"
 }

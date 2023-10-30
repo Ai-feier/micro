@@ -9,6 +9,7 @@ import (
 	"micro/rpc/serialize/json"
 	"net"
 	"reflect"
+	"strconv"
 	"time"
 )
 
@@ -44,7 +45,13 @@ func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
 				if err != nil {
 					return []reflect.Value{retVal, reflect.ValueOf(err)}
 				}
-				meta := make(map[string]string)
+				
+				meta := make(map[string]string, 2)
+				// 是否设置超时
+				if deadline, ok := ctx.Deadline(); ok {
+					meta["deadline"] = strconv.FormatInt(deadline.UnixMilli(), 10)
+				}
+				// 是否设置 Oneway
 				if isOneway(ctx) {
 					meta["oneway"] = "true"
 				}
@@ -135,16 +142,47 @@ func NewClient(addr string, opts ...ClientOption) (*Client,error) {
 }
 
 func (c *Client) Invoke(ctx context.Context, req *message.Request) (*message.Response, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	
+	// 另开一个 goruntine, 是一个信号量监听是否返回响应
+	ch := make(chan struct{})
+	defer func() {
+		close(ch)
+	}()
+	var (
+		resp *message.Response
+		err error
+	)
+	go func() {
+		resp, err = c.doInvoke(ctx, req)
+		ch <- struct{}{}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-ch:
+		return resp, err
+	}
+}
+
+func (c *Client) doInvoke(ctx context.Context, req *message.Request) (*message.Response, error) {
 	data := message.EncodeReq(req)
 	// 发送给服务端
-	resp, err := c.Send(data)
+	resp, err := c.send(ctx, data)
 	if err != nil {
 		return nil, err
 	}
+	// 这里才算是中断
+	//if ctx.Err() != nil {
+	//	return nil, ctx.Err()
+	//}
 	return message.DecodeResp(resp), nil
 }
 
-func (c *Client) Send(data []byte) ([]byte, error) {
+func (c *Client) send(ctx context.Context, data []byte) ([]byte, error) {
 	val, err := c.pool.Get()
 	if err != nil {
 		return nil, err
@@ -156,6 +194,10 @@ func (c *Client) Send(data []byte) ([]byte, error) {
 	_, err = conn.Write(data)
 	if err != nil {
 		return nil, err
+	}
+	// 检测是否是 oneway 调用
+	if isOneway(ctx) {
+		return nil, errors.New("micro: 这是一个 oneway 调用，你不应该处理任何结果")
 	}
 	return ReadMsg(conn)
 }
