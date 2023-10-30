@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/silenceper/pool"
+	"micro/rpc/message"
 	"net"
 	"reflect"
 	"time"
@@ -46,23 +47,42 @@ func setFuncField(service Service, p Proxy) error {
 				if err != nil {
 					return []reflect.Value{retVal, reflect.ValueOf(err)}
 				}
-				req := &Request{
+				req := &message.Request{
 					ServiceName: service.Name(),
 					MethodName:  fieldTyp.Name,
-					Args:        reqData,
+					Data:        reqData,
 				}
+
+				req.CalculateHeaderLength()
+				req.CalculateBodyLength()
 				
 				// 发起调用
 				resp, err := p.Invoke(ctx, req)
 				if err != nil {
 					return []reflect.Value{retVal, reflect.ValueOf(err)}
 				}
-				err = json.Unmarshal(resp.Data, retVal.Interface())
-				if err != nil {
-					return []reflect.Value{retVal, reflect.ValueOf(err)}
+				
+				var retErr error
+				if len(resp.Error) > 0 {
+					retErr = errors.New(string(resp.Error))
 				}
+				
+				if len(resp.Data) > 0 {
+					err = json.Unmarshal(resp.Data, retVal.Interface())
+					if err != nil {
+						return []reflect.Value{retVal, reflect.ValueOf(err)}
+					}
+				}
+				
+				var retErrVal reflect.Value
+				if retErr == nil {
+					retErrVal = reflect.Zero(reflect.TypeOf(new(error)).Elem())
+				} else {
+					retErrVal = reflect.ValueOf(retErr)
+				}
+
 				// reflect zero error 踩坑
-				return []reflect.Value{retVal, reflect.Zero(reflect.TypeOf(new(error)).Elem())}
+				return []reflect.Value{retVal, retErrVal}
 			}
 			fnVal := reflect.MakeFunc(fieldTyp.Type, fn)
 			fieldVal.Set(fnVal)
@@ -96,19 +116,14 @@ func NewClient(addr string) (*Client,error) {
 	}, nil
 }
 
-func (c *Client) Invoke(ctx context.Context, req *Request) (*Response, error) {
-	data, err := json.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
+func (c *Client) Invoke(ctx context.Context, req *message.Request) (*message.Response, error) {
+	data := message.EncodeReq(req)
 	// 发送给服务端
 	resp, err := c.Send(data)
 	if err != nil {
 		return nil, err
 	}
-	return &Response{
-		Data: resp,
-	}, nil
+	return message.DecodeResp(resp), nil
 }
 
 func (c *Client) Send(data []byte) ([]byte, error) {
@@ -120,8 +135,7 @@ func (c *Client) Send(data []byte) ([]byte, error) {
 	defer func() {
 		_ = c.pool.Put(conn)
 	}()
-	req := EncodeMsg(data)
-	_, err = conn.Write(req)
+	_, err = conn.Write(data)
 	if err != nil {
 		return nil, err
 	}
