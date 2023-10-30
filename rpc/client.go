@@ -44,11 +44,16 @@ func setFuncField(service Service, p Proxy, s serialize.Serializer) error {
 				if err != nil {
 					return []reflect.Value{retVal, reflect.ValueOf(err)}
 				}
+				meta := make(map[string]string)
+				if isOneway(ctx) {
+					meta["oneway"] = "true"
+				}
 				req := &message.Request{
 					ServiceName: service.Name(),
 					MethodName:  fieldTyp.Name,
 					Data:        reqData,
 					Serializer: s.Code(),
+					Meta: meta,
 				}
 
 				req.CalculateHeaderLength()

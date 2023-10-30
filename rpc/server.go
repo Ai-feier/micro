@@ -62,8 +62,14 @@ func (s *Server) handleConn(conn net.Conn) error {
 		}
 		// 还原请求信息
 		req := message.DecodeReq(reqBs)
+		
+		ctx := context.Background()
+		oneway, ok := req.Meta["oneway"]
+		if ok && oneway == "true" {
+			ctx = CtxWithOneway(ctx)
+		}
 
-		resp, err := s.Invoke(context.Background(), req)
+		resp, err := s.Invoke(ctx, req)
 		if err != nil {
 			// 处理业务 error
 			resp.Error = []byte(err.Error())
@@ -90,7 +96,13 @@ func (s *Server) Invoke(ctx context.Context, req *message.Request) (*message.Res
 		Serializer: req.Serializer,
 	}
 	if !ok {
-		return nil, errors.New("你要调用的服务不存在")
+		return resp, errors.New("你要调用的服务不存在")
+	}
+	if isOneway(ctx) {
+		go func() {
+			_, _ = service.invoke(ctx, req)
+		}()
+		return resp, errors.New("micro: 微服务服务端 oneway 请求")
 	}
 	respData, err := service.invoke(ctx, req)
 	resp.Data = respData
