@@ -6,6 +6,8 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/silenceper/pool v1.0.0
 	github.com/stretchr/testify v1.8.4
+	go.etcd.io/etcd/client/v3 v3.5.10
+	golang.org/x/sync v0.3.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
 )
@@ -21,7 +23,6 @@ require (
 	github.com/sirupsen/logrus v1.4.2 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.10 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.10 // indirect
-	go.etcd.io/etcd/client/v3 v3.5.10 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.17.0 // indirect

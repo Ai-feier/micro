@@ -43,6 +43,12 @@ func ServerWithRegistry(r registry.Registry) ServerOption {
 	}
 }
 
+func ServerWithGroup(group string) ServerOption {
+	return func(server *Server) {
+		server.group = group
+	}
+}
+
 func (s *Server) Start(addr string) error {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -59,6 +65,8 @@ func (s *Server) Start(addr string) error {
 			Name:    s.name,
 			// 节点的唯一定位信息
 			Address: s.listener.Addr().String(),
+			// 分组信息
+			Group: s.group,
 		})
 		if err != nil {
 			return err

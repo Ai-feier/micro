@@ -88,7 +88,8 @@ func (g *grpcResolver) resolve() {
 		address = append(address, resolver.Address{
 			Addr: si.Address,
 			// 拿到负载均衡的 attribute
-			Attributes: attributes.New("weight", si.Weight),
+			Attributes: attributes.New("weight", si.Weight). 
+				WithValue("group", si.Group),
 		})
 	}
 
