@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/balancer"
+	"google.golang.org/grpc/balancer/base"
 	"micro/registry"
 	"time"
 )
@@ -14,6 +16,8 @@ type Client struct {
 	insecure bool
 	r registry.Registry
 	timeout time.Duration
+	// 负载均衡的 pirckerbuilder
+	balancer balancer.Builder
 }
 
 // NewClient 可以不使用注册中心
@@ -24,6 +28,14 @@ func NewClient(opts ...ClientOption) *Client {
 		opt(res)
 	}
 	return res
+}
+
+func ClientWithPickBuilder(name string, b base.PickerBuilder) ClientOption {
+	return func(c *Client) {
+		builder := base.NewBalancerBuilder(name, b, base.Config{HealthCheck: true})
+		balancer.Register(builder)
+		c.balancer = builder
+	}
 }
 
 func ClientInsecure() ClientOption {
@@ -53,6 +65,11 @@ func (c *Client) Dial(ctx context.Context, service string,
 	}
 	if c.insecure {
 		opts = append(opts, grpc.WithInsecure())
+	}
+	// 增加负载均衡的 grpc option
+	if c.balancer != nil {
+		opts = append(opts, grpc.WithDefaultServiceConfig(
+			fmt.Sprintf(`{"LoadBalancingPolicy": "%s"}`, c.balancer.Name())))
 	}
 	if len(dialOptions) > 0 {
 		opts = append(opts, dialOptions...)

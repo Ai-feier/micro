@@ -2,6 +2,7 @@ package micro
 
 import (
 	"context"
+	"google.golang.org/grpc/attributes"
 	"google.golang.org/grpc/resolver"
 	"micro/registry"
 	"time"
@@ -63,13 +64,6 @@ func (g *grpcResolver) watch() {
 		case <-events:
 			// 直接全量从注册中心更新
 			g.resolve()
-
-			//case event := <- events:
-			//switch event.Type {
-			//case "DELETE":
-			//	// 删除已有的节点
-			//
-			//} 
 		case <-g.close:
 			return
 		}
@@ -93,6 +87,8 @@ func (g *grpcResolver) resolve() {
 	for _, si := range instanses {
 		address = append(address, resolver.Address{
 			Addr: si.Address,
+			// 拿到负载均衡的 attribute
+			Attributes: attributes.New("weight", si.Weight),
 		})
 	}
 
