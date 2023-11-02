@@ -1,6 +1,6 @@
 services:
   etcd:
-    image: 'bitnami/etcd:latest'
+    image: bitnami/etcd:latest
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes
       - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
@@ -18,3 +18,10 @@ services:
       - 12000:8080
     depends_on:
       - etcd
+  
+  redis:
+    image: docker.io/bitnami/redis:latest
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - '6379:6379'
